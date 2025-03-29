@@ -4,6 +4,8 @@ import shutil
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from motor.motor_asyncio import AsyncIOMotorClient
+from flask import Flask
+import threading
 
 # Pyrogram client setup
 bot = Client(
@@ -30,6 +32,9 @@ os.makedirs(CONVERTED_PATH, exist_ok=True)
 
 # FFmpeg path check
 FFMPEG_PATH = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
+
+if not shutil.which("ffmpeg"):
+    raise FileNotFoundError("FFmpeg not found! Make sure it is installed.")
 
 def log(msg):
     print(f"🔹 {msg}")
@@ -88,9 +93,6 @@ async def stats_command(client: Client, message: Message):
     stats = await stats_collection.find_one({"_id": "conversion_stats"})
     total_conversions = stats.get("total_conversions", 0) if stats else 0
     await message.reply(f"📊 Total Conversions: {total_conversions}")
-
-from flask import Flask
-import threading
 
 flask_app = Flask(__name__)
 
