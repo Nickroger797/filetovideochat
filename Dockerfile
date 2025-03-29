@@ -1,8 +1,7 @@
 FROM python:3.12-slim
 
 # आवश्यक पैकेज इंस्टॉल करें
-RUN apt-get update && apt-get install -y ffmpeg
-
+RUN apt-get update && apt-get install -y ffmpeg && which ffmpeg
 # वर्किंग डायरेक्टरी सेट करें
 WORKDIR /app
 
