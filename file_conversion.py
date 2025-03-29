@@ -2,6 +2,8 @@ import os
 import subprocess
 import shutil
 from pyrogram import Client
+from pyrogram.types import Message
+import asyncio
 
 # Directories
 DOWNLOAD_LOCATION = "./DOWNLOADS"
@@ -12,37 +14,53 @@ FFMPEG_PATH = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
 if not os.path.exists(FFMPEG_PATH):
     raise FileNotFoundError("FFmpeg not found! Install it in your system.")
 
-async def convert_file(file_id, client: Client):
-    # Fetch the file information using file_id
+def log(msg):
+    print(f"🔹 {msg}")
+
+# Function to convert file
+async def convert_file(file_id, client: Client, message: Message):
     file = await client.get_messages(file_id)
     file_path = os.path.join(DOWNLOAD_LOCATION, file.file_name)
+    
+    log(f"Downloading file: {file.file_name}")
+    await message.reply("📥 Downloading file...")
 
-    # Download file
-    print(f"Downloading file: {file.file_name}")
     try:
         downloaded = await client.download_media(file, file_path)
         if not os.path.exists(downloaded):
-            print("❌ File download failed.")
-            return None
-        print(f"✅ File downloaded: {downloaded}")
+            await message.reply("❌ File download failed.")
+            return
+        log(f"✅ File downloaded: {downloaded}")
     except Exception as e:
-        print(f"❌ Download error: {e}")
-        return None
+        log(f"❌ Download error: {e}")
+        await message.reply("❌ Error downloading the file.")
+        return
 
-    # Define the output file name and path (e.g., convert to MP4)
+    # Conversion logic here
     output_file = os.path.join(CONVERTED_PATH, os.path.splitext(file.file_name)[0] + ".mp4")
 
-    # Converting the file using FFmpeg
-    print(f"🔄 Converting {file.file_name} to MP4...")
-    cmd = [FFMPEG_PATH, "-i", downloaded, "-c:v", "libx264", output_file]
+    log(f"🔄 Converting {file.file_name} to MP4...")
+    await message.reply("⏳ Converting file to media...")
+
     try:
+        cmd = [FFMPEG_PATH, "-i", downloaded, "-c:v", "libx264", output_file]
         subprocess.run(cmd, check=True)
         if not os.path.exists(output_file):
-            print("❌ Conversion failed.")
-            return None
-        print(f"✅ Conversion successful: {output_file}")
+            await message.reply("❌ Conversion failed.")
+            return
+        log(f"✅ Conversion successful: {output_file}")
     except subprocess.CalledProcessError as e:
-        print(f"❌ FFmpeg error: {e}")
-        return None
+        log(f"❌ FFmpeg error: {e}")
+        await message.reply("❌ FFmpeg conversion error.")
+        return
 
-    return output_file
+    await message.reply_video(output_file, caption="Here is your converted media!")
+
+# Handle conversion from any document received
+async def handle_conversion(client, message):
+    if not message.document:
+        await message.reply("Please send a document to convert.")
+        return
+
+    file_id = message.document.file_id  # Extract the file_id from the incoming message
+    await convert_file(file_id, client, message)  # Call the conversion function
