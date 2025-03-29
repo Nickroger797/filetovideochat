@@ -1,5 +1,4 @@
-# Use official Python image
-FROM python:3.12-slim
+FROM python:3.12
 
 # Install FFmpeg
 RUN apt-get update && apt-get install -y ffmpeg
@@ -7,17 +6,14 @@ RUN apt-get update && apt-get install -y ffmpeg
 # Set Work Directory
 WORKDIR /app
 
-# Copy dependency file first (better caching)
-COPY requirements.txt .
-
-# Install Dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy all project files
+# Copy All Files
 COPY . .
 
-# Expose any necessary ports (if using a web framework)
-EXPOSE 8080
+# Give Executable Permission to startup.sh
+RUN chmod +x startup.sh
+
+# Install Dependencies
+RUN pip install -r requirements.txt
 
 # Start the Bot
-CMD ["python", "main.py"]
+CMD ["./startup.sh"]
