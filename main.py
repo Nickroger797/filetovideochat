@@ -31,15 +31,22 @@ def run_flask():
 
 threading.Thread(target=run_flask, daemon=True).start()
 
-# Wrapper function for stats command
-async def stats_command_wrapper(client, message):
-    await commands.stats_command(client, message, stats_collection)
+# Register Handlers
+@bot.on_message(filters.command("start"))
+async def start(client, message):
+    await commands.start_command(client, message)
 
-# 🔹 Register Handlers
-bot.add_handler(filters.command("start")(commands.start_command))
-bot.add_handler(filters.command("convertfiletomedia")(commands.convert_file_to_media))
-bot.add_handler(filters.command("convertmediatofile")(commands.convert_media_to_file))
-bot.add_handler(filters.command("stats")(stats_command_wrapper))  # ✅ Fix applied
+@bot.on_message(filters.command("convertfiletomedia"))
+async def convert_file(client, message):
+    await commands.convert_file_to_media(client, message)
+
+@bot.on_message(filters.command("convertmediatofile"))
+async def convert_media(client, message):
+    await commands.convert_media_to_file(client, message)
+
+@bot.on_message(filters.command("stats"))
+async def stats_command(client, message):
+    await commands.stats_command(client, message, stats_collection)  # ✅ Fix applied
 
 print("🚀 Bot is starting...")
 bot.run()
