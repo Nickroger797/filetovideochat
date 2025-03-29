@@ -1,43 +1,48 @@
-# file_conversion.py
-import asyncio
-from pyrogram.errors import TimeoutError, FloodWait
-import ffmpeg
 import os
+import subprocess
+import shutil
+from pyrogram import Client
 
-# Retry logic for file download
-async def download_file(file_id, client, retries=3, timeout=60):
-    for attempt in range(retries):
-        try:
-            # File download with increased timeout
-            file = await client.get_file(file_id, timeout=timeout)
-            return file  # Return file if download is successful
-        except TimeoutError:
-            print(f"Attempt {attempt + 1}: Request timed out, retrying...")
-            await asyncio.sleep(5)  # Wait before retrying
-        except FloodWait as e:
-            print(f"Flood wait for {e.x} seconds.")
-            await asyncio.sleep(e.x)  # Handle flood wait
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            break  # Exit if any other exception occurs
-    raise Exception("Failed to download file after multiple retries")
+# Directories
+DOWNLOAD_LOCATION = "./DOWNLOADS"
+CONVERTED_PATH = "./CONVERTED"
 
-# File conversion logic with ffmpeg
-async def convert_file(file_id, client):
+# FFmpeg path check
+FFMPEG_PATH = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
+if not os.path.exists(FFMPEG_PATH):
+    raise FileNotFoundError("FFmpeg not found! Install it in your system.")
+
+async def convert_file(file_id, client: Client):
+    # Fetch the file information using file_id
+    file = await client.get_messages(file_id)
+    file_path = os.path.join(DOWNLOAD_LOCATION, file.file_name)
+
+    # Download file
+    print(f"Downloading file: {file.file_name}")
     try:
-        # Download the file with retry logic
-        file = await download_file(file_id, client)
-        print(f"Downloaded file: {file.file_path}")
-        
-        # Specify the input file path and output path
-        input_path = f"./DOWNLOADS/{file.file_path.split('/')[-1]}"
-        output_path = f"./CONVERTED/{file.file_path.split('/')[-1].replace('.mkv', '.mp4')}"
-        
-        # Using ffmpeg to convert the file
-        ffmpeg.input(input_path).output(output_path).run()
-        print(f"Conversion successful, output saved to: {output_path}")
-        
-        # Add any further processing here (e.g., sending the file back to the user)
-        
+        downloaded = await client.download_media(file, file_path)
+        if not os.path.exists(downloaded):
+            print("❌ File download failed.")
+            return None
+        print(f"✅ File downloaded: {downloaded}")
     except Exception as e:
-        print(f"Error during conversion: {e}")
+        print(f"❌ Download error: {e}")
+        return None
+
+    # Define the output file name and path (e.g., convert to MP4)
+    output_file = os.path.join(CONVERTED_PATH, os.path.splitext(file.file_name)[0] + ".mp4")
+
+    # Converting the file using FFmpeg
+    print(f"🔄 Converting {file.file_name} to MP4...")
+    cmd = [FFMPEG_PATH, "-i", downloaded, "-c:v", "libx264", output_file]
+    try:
+        subprocess.run(cmd, check=True)
+        if not os.path.exists(output_file):
+            print("❌ Conversion failed.")
+            return None
+        print(f"✅ Conversion successful: {output_file}")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ FFmpeg error: {e}")
+        return None
+
+    return output_file
