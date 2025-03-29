@@ -1,1 +1,7 @@
-apt-get update && apt-get install -y ffmpeg && python3 main.py
+#!/bin/bash
+
+# Update & Install FFmpeg
+apt-get update && apt-get install -y ffmpeg
+
+# Start the Bot
+python main.py
