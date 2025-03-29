@@ -1,5 +1,4 @@
 import os
-from pyrogram import Client
 from motor.motor_asyncio import AsyncIOMotorClient
 from flask import Flask
 import threading
