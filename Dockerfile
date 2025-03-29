@@ -1,13 +1,14 @@
-FROM debian:bookworm-slim
+FROM python:3.12
 
-# FFmpeg और dependencies इंस्टॉल करो
-RUN apt-get update && apt-get install -y ffmpeg python3 python3-pip
+# FFmpeg install करो
+RUN apt-get update && apt-get install -y ffmpeg
 
 WORKDIR /app
 
+# Dependencies install करो
 COPY requirements.txt .
-COPY main.py .
-
 RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["python3", "main.py"]
+COPY . .
+
+CMD ["python", "main.py"]
