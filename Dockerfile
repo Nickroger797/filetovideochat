@@ -10,10 +10,10 @@ WORKDIR /app
 COPY . .
 
 # Give Executable Permission to startup.sh
-RUN chmod +x startup.sh
+RUN chmod +x /app/startup.sh
 
 # Install Dependencies
 RUN pip install -r requirements.txt
 
 # Start the Bot
-CMD ["./startup.sh"]
+CMD ["/bin/bash", "/app/startup.sh"]
