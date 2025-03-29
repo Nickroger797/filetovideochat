@@ -5,6 +5,10 @@ from flask import Flask
 import threading
 from commands import *  # Importing all the command functions from commands.py
 
+# Logging function (FIX)
+def log(msg):
+    print(f"🔹 {msg}")
+
 # Pyrogram client setup
 bot = Client(
     "FileConverterBot",
@@ -32,5 +36,5 @@ def run_flask():
 
 threading.Thread(target=run_flask, daemon=True).start()
 
-log("🚀 Bot is starting...")
+log("🚀 Bot is starting...")  # ✅ Ab ye error nahi dega
 bot.run()
