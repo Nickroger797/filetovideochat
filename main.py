@@ -1,96 +1,78 @@
 import os
-import asyncio
-import ffmpeg
-import pymongo
+import subprocess
+import logging
 from pyrogram import Client, filters
-from pyrogram.types import Message
+from pymongo import MongoClient
+from flask import Flask
+import threading
 
-# Bot credentials
-API_ID = int(os.getenv("API_ID"))  # API_ID ko integer me convert kar rahe hain
+# Logging Setup
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Environment Variables
+API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URI = os.getenv("MONGO_URI")
 
+# Database Setup
+mongo_client = MongoClient(MONGO_URI)
+db = mongo_client["FileToMediaBot"]
+user_history = db["user_history"]
 
-# MongoDB setup
-client_db = pymongo.MongoClient(MONGO_URI)
-db = client_db["FileMediaBot"]
-users_collection = db["users"]
-logs_collection = db["logs"]
+# Pyrogram Bot Setup
+app = Client("file_media_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-app = Client("FileMediaConverter", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-
-def update_user_data(user_id):
-    users_collection.update_one({"user_id": user_id}, {"$inc": {"conversions": 1}}, upsert=True)
-
-def log_conversion(user_id, file_type, file_size, duration):
-    logs_collection.insert_one({
-        "user_id": user_id,
-        "file_type": file_type,
-        "file_size": file_size,
-        "duration": duration
-    })
+# Dummy Flask Server for Koyeb Health Check
+flask_app = Flask(__name__)
+@flask_app.route('/')
+def home():
+    return "Bot is running!"
+def run_flask():
+    flask_app.run(host="0.0.0.0", port=8080)
+threading.Thread(target=run_flask, daemon=True).start()
 
 # Start Command
-@app.on_message(filters.command("start"))
-async def start_command(client: Client, message: Message):
-    await message.reply_text("👋 Welcome! Send a file or media and use the commands:\n\n🔹 /convertfiletomedia - Convert file to media\n🔹 /convertmediatofile - Convert media to file")
+@app.on_message(filters.command("start") & filters.private)
+async def start(client, message):
+    await message.reply_text(
+        "\U0001F44B Welcome! Send a file or media and use the commands:\n\n"
+        "\U0001F539 /convertfiletomedia - Convert file to media\n"
+        "\U0001F539 /convertmediatofile - Convert media to file"
+    )
 
 # Convert File to Media
-@app.on_message(filters.command("convertfiletomedia") & filters.document)
-async def convert_file_to_media(client: Client, message: Message):
-    user_id = message.from_user.id
-    file_path = await message.download()
-    output_path = file_path + ".mp4"  # Assuming video conversion
+@app.on_message(filters.command("convertfiletomedia") & filters.private)
+async def convert_file_to_media(client, message):
+    if not message.reply_to_message or not message.reply_to_message.document:
+        return await message.reply_text("Please reply to a file to convert it into media.")
     
-    try:
-        process = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-i", file_path, "-c:v", "libx264", "-preset", "fast", "-crf", "23", output_path
-        )
-        await process.communicate()
-        
-        file_size = os.path.getsize(output_path)
-        update_user_data(user_id)
-        log_conversion(user_id, "file_to_media", file_size, None)
-        
-        await message.reply_video(output_path)
-        os.remove(output_path)
-    except Exception as e:
-        await message.reply_text(f"Conversion failed: {str(e)}")
-    finally:
-        os.remove(file_path)
+    file_path = await message.reply_to_message.download()
+    output_path = file_path.rsplit(".", 1)[0] + ".mp4"
+    
+    command = ["ffmpeg", "-i", file_path, "-c:v", "libx264", "-preset", "fast", "-c:a", "aac", output_path]
+    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    
+    await message.reply_video(output_path)
+    os.remove(file_path)
+    os.remove(output_path)
 
 # Convert Media to File
-@app.on_message(filters.command("convertmediatofile") & (filters.video | filters.audio | filters.photo))
-async def convert_media_to_file(client: Client, message: Message):
-    user_id = message.from_user.id
-    media_path = await message.download()
-    output_path = media_path + ".file"
+@app.on_message(filters.command("convertmediatofile") & filters.private)
+async def convert_media_to_file(client, message):
+    if not message.reply_to_message or not message.reply_to_message.video:
+        return await message.reply_text("Please reply to a media file to convert it.")
     
-    try:
-        os.rename(media_path, output_path)
-        file_size = os.path.getsize(output_path)
-        update_user_data(user_id)
-        log_conversion(user_id, "media_to_file", file_size, None)
-        
-        await message.reply_document(output_path)
-        os.remove(output_path)
-    except Exception as e:
-        await message.reply_text(f"Conversion failed: {str(e)}")
+    file_path = await message.reply_to_message.download()
+    output_path = file_path.rsplit(".", 1)[0] + ".mkv"
+    
+    command = ["ffmpeg", "-i", file_path, "-c", "copy", output_path]
+    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    
+    await message.reply_document(output_path)
+    os.remove(file_path)
+    os.remove(output_path)
 
-from flask import Flask  
-import threading  
-
-flask_app = Flask(__name__)  
-
-@flask_app.route('/')  
-def home():  
-    return "Bot is running!"  
-
-def run_flask():  
-    flask_app.run(host="0.0.0.0", port=8080)  
-
-# Flask ko ek alag thread pe run karna  
-threading.Thread(target=run_flask, daemon=True).start()  
-
+# Run the Bot
 app.run()
