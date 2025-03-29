@@ -4,6 +4,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from flask import Flask
 import threading
 from commands import start_command, convert_file_to_media, convert_media_to_file, stats_command
+from pyrogram import idle
 
 # Logging function (FIX)
 def log(msg):
