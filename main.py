@@ -6,9 +6,9 @@ from pyrogram.types import Message
 # Pyrogram client setup
 bot = Client(
     "FileConverterBot",
-    api_id=123456,  # Replace with your API ID
-    api_hash="your_api_hash",  # Replace with your API hash
-    bot_token="your_bot_token"  # Replace with your bot token
+    api_id=int(os.getenv("API_ID")),
+    api_hash=os.getenv("API_HASH"),
+    bot_token=os.getenv("BOT_TOKEN")
 )
 
 DOWNLOAD_PATH = "downloads"
