@@ -4,6 +4,7 @@ import shutil
 from pyrogram import Client
 from pyrogram.types import Message
 from file_conversion import convert_file  # Import the function
+from file_conversion import handle_conversion
 
 # Directories
 DOWNLOAD_LOCATION = "./DOWNLOADS"
@@ -113,3 +114,7 @@ async def stats_command(client: Client, message: Message, stats_collection):
     stats = await stats_collection.find_one({"_id": "conversion_stats"})
     total_conversions = stats.get("total_conversions", 0) if stats else 0
     await message.reply(f"📊 Total Conversions: {total_conversions}")
+
+@Client.on_message(filters.document)
+async def on_document_received(client: Client, message: Message):
+    await handle_conversion(client, message)
