@@ -12,8 +12,5 @@ COPY . .
 # Install Dependencies
 RUN pip install -r requirements.txt
 
-# Give execution permission to main script (Optional, if needed)
-RUN chmod +x /app/main.py
-
 # Start the Bot
 CMD ["python", "main.py"]
