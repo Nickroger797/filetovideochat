@@ -9,11 +9,11 @@ WORKDIR /app
 # Copy All Files
 COPY . .
 
-# Give Executable Permission to startup.sh
+# Give Execute Permission to startup.sh
 RUN chmod +x /app/startup.sh
 
 # Install Dependencies
 RUN pip install -r requirements.txt
 
-# Start the Bot
-CMD ["/bin/bash", "/app/startup.sh"]
+# Start the Bot using Shell
+CMD ["/bin/bash", "-c", "/app/startup.sh"]
