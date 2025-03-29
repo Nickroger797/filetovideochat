@@ -35,20 +35,31 @@ async def convert_file_to_media(client, message: Message):
     log(f"✅ File downloaded: {downloaded}")
 
     os.makedirs(CONVERTED_PATH, exist_ok=True)  # Ensure output directory exists
-    output_file = os.path.join(CONVERTED_PATH, os.path.splitext(safe_filename)[0] + ".mp4")
+    
+    # MP4 Output File
+    mp4_output = os.path.join(CONVERTED_PATH, os.path.splitext(safe_filename)[0] + ".mp4")
+    # AVI Output File
+    avi_output = os.path.join(CONVERTED_PATH, os.path.splitext(safe_filename)[0] + ".avi")
 
+    # Convert to MP4
     log(f"🔄 Converting {file.file_name} to MP4...")
-    await message.reply("⏳ Converting file to media...")
+    await message.reply("⏳ Converting file to MP4...")
+    cmd_mp4 = [FFMPEG_PATH, "-i", downloaded, "-c:v", "libx264", "-preset", "fast", mp4_output]
+    subprocess.run(cmd_mp4, check=True)
 
-    cmd = [FFMPEG_PATH, "-i", downloaded, "-c:v", "libx264", output_file]
-    subprocess.run(cmd, check=True)
+    if os.path.exists(mp4_output):
+        log(f"✅ MP4 Conversion successful: {mp4_output}")
+        await message.reply_video(mp4_output, caption="Here is your converted MP4 media!")
 
-    if not os.path.exists(output_file):
-        await message.reply("❌ Conversion failed.")
-        return
-    log(f"✅ Conversion successful: {output_file}")
+    # Convert to AVI
+    log(f"🔄 Converting {file.file_name} to AVI...")
+    await message.reply("⏳ Converting file to AVI...")
+    cmd_avi = [FFMPEG_PATH, "-i", downloaded, "-c:v", "libxvid", "-qscale:v", "5", avi_output]
+    subprocess.run(cmd_avi, check=True)
 
-    await message.reply_video(output_file, caption="Here is your converted media!")
+    if os.path.exists(avi_output):
+        log(f"✅ AVI Conversion successful: {avi_output}")
+        await message.reply_video(avi_output, caption="Here is your converted AVI media!")
 
 async def convert_media_to_file(client, message: Message):
     if not message.reply_to_message or not message.reply_to_message.video:
