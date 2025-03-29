@@ -18,8 +18,7 @@ def log(msg):
     print(f"🔹 {msg}")
 
 # Function to convert file
-async def convert_file(file_id, client: Client, message: Message):
-    file = await client.get_messages(file_id)
+async def convert_file(file, client: Client, message: Message):
     file_path = os.path.join(DOWNLOAD_LOCATION, file.file_name)
     
     log(f"Downloading file: {file.file_name}")
@@ -62,5 +61,6 @@ async def handle_conversion(client, message):
         await message.reply("Please send a document to convert.")
         return
 
-    file_id = message.document.file_id  # Extract the file_id from the incoming message
-    await convert_file(file_id, client, message)  # Call the conversion function
+    # Directly use message.document for file
+    file = message.document
+    await convert_file(file, client, message)  # Call the conversion function
