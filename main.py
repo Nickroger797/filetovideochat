@@ -32,9 +32,8 @@ os.makedirs(CONVERTED_PATH, exist_ok=True)
 
 # FFmpeg path check
 FFMPEG_PATH = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
-
-if not shutil.which("ffmpeg"):
-    raise FileNotFoundError("FFmpeg not found! Make sure it is installed.")
+if not os.path.exists(FFMPEG_PATH):
+    raise FileNotFoundError("FFmpeg not found! Install it in your system.")
 
 def log(msg):
     print(f"🔹 {msg}")
@@ -57,7 +56,6 @@ async def convert_file_to_media(client: Client, message: Message):
     try:
         downloaded = await client.download_media(file, file_path)
         if not os.path.exists(downloaded):
-            log("❌ File download failed!")
             await message.reply("❌ File download failed.")
             return
         log(f"✅ File downloaded: {downloaded}")
@@ -75,7 +73,6 @@ async def convert_file_to_media(client: Client, message: Message):
         cmd = [FFMPEG_PATH, "-i", downloaded, "-c:v", "libx264", output_file]
         subprocess.run(cmd, check=True)
         if not os.path.exists(output_file):
-            log("❌ Conversion failed!")
             await message.reply("❌ Conversion failed.")
             return
         log(f"✅ Conversion successful: {output_file}")
@@ -85,8 +82,49 @@ async def convert_file_to_media(client: Client, message: Message):
         await message.reply("❌ FFmpeg conversion error.")
         return
 
-    await message.reply("📤 Uploading media...")
     await message.reply_video(output_file, caption="Here is your converted media!")
+
+@bot.on_message(filters.command("convertmediatofile"))
+async def convert_media_to_file(client: Client, message: Message):
+    if not message.reply_to_message or not message.reply_to_message.video:
+        await message.reply("Please reply to a video to convert it to a file.")
+        return
+
+    video = message.reply_to_message.video
+    file_path = os.path.join(DOWNLOAD_LOCATION, video.file_name)
+
+    log(f"Downloading video: {video.file_name}")
+    await message.reply("📥 Downloading video...")
+
+    try:
+        downloaded = await client.download_media(video, file_path)
+        if not os.path.exists(downloaded):
+            await message.reply("❌ Video download failed.")
+            return
+        log(f"✅ Video downloaded: {downloaded}")
+    except Exception as e:
+        log(f"❌ Download error: {e}")
+        await message.reply("❌ Error downloading the video.")
+        return
+
+    output_file = os.path.join(CONVERTED_PATH, os.path.splitext(video.file_name)[0] + ".zip")
+
+    log(f"🔄 Converting {video.file_name} to a zip file...")
+    await message.reply("⏳ Converting media to file...")
+
+    try:
+        shutil.make_archive(output_file.replace(".zip", ""), "zip", DOWNLOAD_LOCATION)
+        if not os.path.exists(output_file):
+            await message.reply("❌ Conversion failed.")
+            return
+        log(f"✅ Conversion successful: {output_file}")
+        await update_stats()
+    except Exception as e:
+        log(f"❌ Compression error: {e}")
+        await message.reply("❌ Compression error.")
+        return
+
+    await message.reply_document(output_file, caption="Here is your converted file!")
 
 @bot.on_message(filters.command("stats"))
 async def stats_command(client: Client, message: Message):
@@ -94,6 +132,7 @@ async def stats_command(client: Client, message: Message):
     total_conversions = stats.get("total_conversions", 0) if stats else 0
     await message.reply(f"📊 Total Conversions: {total_conversions}")
 
+# Flask Webserver
 flask_app = Flask(__name__)
 
 @flask_app.route('/')
@@ -103,7 +142,6 @@ def home():
 def run_flask():
     flask_app.run(host="0.0.0.0", port=8080)
 
-# Start Flask in a separate thread
 threading.Thread(target=run_flask, daemon=True).start()
 
 log("🚀 Bot is starting...")
