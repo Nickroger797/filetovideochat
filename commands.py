@@ -5,6 +5,7 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 from file_conversion import convert_file  # Import the function
 from file_conversion import handle_conversion
+from main import bot 
 
 # Directories
 DOWNLOAD_LOCATION = "./DOWNLOADS"
