@@ -78,9 +78,3 @@ async def convert_media_to_file(client: Client, message: Message):
         await message.reply_text(f"Conversion failed: {str(e)}")
 
 app.run()
-
-
-/start command add kar diya hai!
-
-Ab jab koi user /start command bhejega, to usko bot ka welcome message aur instructions mil jayenge. Koi aur feature add karna ho to batao!
-
