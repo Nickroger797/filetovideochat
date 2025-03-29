@@ -1,78 +1,116 @@
 import os
 import subprocess
-import logging
 from pyrogram import Client, filters
-from pymongo import MongoClient
-from flask import Flask
-import threading
+from pyrogram.types import Message
 
-# Logging Setup
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Pyrogram client setup
+bot = Client(
+    "FileConverterBot",
+    api_id=123456,  # Replace with your API ID
+    api_hash="your_api_hash",  # Replace with your API hash
+    bot_token="your_bot_token"  # Replace with your bot token
+)
 
-# Environment Variables
-API_ID = int(os.getenv("API_ID"))
-API_HASH = os.getenv("API_HASH")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-MONGO_URI = os.getenv("MONGO_URI")
+DOWNLOAD_PATH = "downloads"
+CONVERTED_PATH = "converted"
 
-# Database Setup
-mongo_client = MongoClient(MONGO_URI)
-db = mongo_client["FileToMediaBot"]
-user_history = db["user_history"]
+# Ensure directories exist
+os.makedirs(DOWNLOAD_PATH, exist_ok=True)
+os.makedirs(CONVERTED_PATH, exist_ok=True)
 
-# Pyrogram Bot Setup
-app = Client("file_media_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+# Debug function
+def log(msg):
+    print(f"🔹 {msg}")
 
-# Dummy Flask Server for Koyeb Health Check
-flask_app = Flask(__name__)
-@flask_app.route('/')
-def home():
-    return "Bot is running!"
-def run_flask():
-    flask_app.run(host="0.0.0.0", port=8080)
-threading.Thread(target=run_flask, daemon=True).start()
-
-# Start Command
-@app.on_message(filters.command("start") & filters.private)
-async def start(client, message):
-    await message.reply_text(
-        "\U0001F44B Welcome! Send a file or media and use the commands:\n\n"
-        "\U0001F539 /convertfiletomedia - Convert file to media\n"
-        "\U0001F539 /convertmediatofile - Convert media to file"
-    )
-
-# Convert File to Media
-@app.on_message(filters.command("convertfiletomedia") & filters.private)
-async def convert_file_to_media(client, message):
+@bot.on_message(filters.command("convertfiletomedia"))
+async def convert_file_to_media(client: Client, message: Message):
     if not message.reply_to_message or not message.reply_to_message.document:
-        return await message.reply_text("Please reply to a file to convert it into media.")
-    
-    file_path = await message.reply_to_message.download()
-    output_path = file_path.rsplit(".", 1)[0] + ".mp4"
-    
-    command = ["ffmpeg", "-i", file_path, "-c:v", "libx264", "-preset", "fast", "-c:a", "aac", output_path]
-    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    
-    await message.reply_video(output_path)
-    os.remove(file_path)
-    os.remove(output_path)
+        await message.reply("Please reply to a file to convert it to media.")
+        return
 
-# Convert Media to File
-@app.on_message(filters.command("convertmediatofile") & filters.private)
-async def convert_media_to_file(client, message):
-    if not message.reply_to_message or not message.reply_to_message.video:
-        return await message.reply_text("Please reply to a media file to convert it.")
-    
-    file_path = await message.reply_to_message.download()
-    output_path = file_path.rsplit(".", 1)[0] + ".mkv"
-    
-    command = ["ffmpeg", "-i", file_path, "-c", "copy", output_path]
-    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    
-    await message.reply_document(output_path)
-    os.remove(file_path)
-    os.remove(output_path)
+    file = message.reply_to_message.document
+    file_path = os.path.join(DOWNLOAD_PATH, file.file_name)
 
-# Run the Bot
-app.run()
+    log(f"Downloading file: {file.file_name}")
+    await message.reply("📥 Downloading file...")
+
+    try:
+        downloaded = await client.download_media(file, file_path)
+        if not os.path.exists(downloaded):
+            log("❌ File download failed!")
+            await message.reply("❌ File download failed.")
+            return
+        log(f"✅ File downloaded: {downloaded}")
+    except Exception as e:
+        log(f"❌ Download error: {e}")
+        await message.reply("❌ Error downloading the file.")
+        return
+
+    output_file = os.path.join(CONVERTED_PATH, os.path.splitext(file.file_name)[0] + ".mp4")
+
+    log(f"🔄 Converting {file.file_name} to MP4...")
+    await message.reply("⏳ Converting file to media...")
+
+    try:
+        cmd = ["ffmpeg", "-i", downloaded, "-c:v", "libx264", output_file]
+        subprocess.run(cmd, check=True)
+        if not os.path.exists(output_file):
+            log("❌ Conversion failed!")
+            await message.reply("❌ Conversion failed.")
+            return
+        log(f"✅ Conversion successful: {output_file}")
+    except subprocess.CalledProcessError as e:
+        log(f"❌ FFmpeg error: {e}")
+        await message.reply("❌ FFmpeg conversion error.")
+        return
+
+    await message.reply("📤 Uploading media...")
+    await message.reply_video(output_file, caption="Here is your converted media!")
+
+@bot.on_message(filters.command("convertmediatofile"))
+async def convert_media_to_file(client: Client, message: Message):
+    if not message.reply_to_message or not (message.reply_to_message.video or message.reply_to_message.audio):
+        await message.reply("Please reply to a media file to convert it.")
+        return
+
+    media = message.reply_to_message.video or message.reply_to_message.audio
+    media_path = os.path.join(DOWNLOAD_PATH, media.file_name)
+
+    log(f"Downloading media: {media.file_name}")
+    await message.reply("📥 Downloading media...")
+
+    try:
+        downloaded = await client.download_media(media, media_path)
+        if not os.path.exists(downloaded):
+            log("❌ Media download failed!")
+            await message.reply("❌ Media download failed.")
+            return
+        log(f"✅ Media downloaded: {downloaded}")
+    except Exception as e:
+        log(f"❌ Download error: {e}")
+        await message.reply("❌ Error downloading the media.")
+        return
+
+    output_file = os.path.join(CONVERTED_PATH, os.path.splitext(media.file_name)[0] + ".mkv")
+
+    log(f"🔄 Converting {media.file_name} to MKV...")
+    await message.reply("⏳ Converting media to file...")
+
+    try:
+        cmd = ["ffmpeg", "-i", downloaded, "-c:v", "copy", "-c:a", "copy", output_file]
+        subprocess.run(cmd, check=True)
+        if not os.path.exists(output_file):
+            log("❌ Conversion failed!")
+            await message.reply("❌ Conversion failed.")
+            return
+        log(f"✅ Conversion successful: {output_file}")
+    except subprocess.CalledProcessError as e:
+        log(f"❌ FFmpeg error: {e}")
+        await message.reply("❌ FFmpeg conversion error.")
+        return
+
+    await message.reply("📤 Uploading converted file...")
+    await message.reply_document(output_file, caption="Here is your converted file!")
+
+log("🚀 Bot is starting...")
+bot.run()
