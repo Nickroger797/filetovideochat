@@ -31,6 +31,12 @@ async def start_command(client: Client, message: Message):
         log(f"Error in start command: {e}")
         await message.reply("❌ Something went wrong with the start command.")
 
+# 🔹 Debug handler (यह नया code है)
+@Client.on_message(filters.text)
+async def debug_message(client, message):
+    print(f"Received message: {message.text}")
+    await message.reply("Debug: Message received!")
+
 # Command to convert file to media
 @Client.on_message(filters.command("convertfiletomedia"))
 async def convert_file_to_media(client: Client, message: Message):
