@@ -4,6 +4,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from flask import Flask
 import threading
 import commands
+from pyrogram import Client, filters
 
 # Pyrogram client setup
 bot = Client(
