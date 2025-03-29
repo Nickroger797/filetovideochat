@@ -1,3 +1,2 @@
 #!/bin/bash
-apt update && apt install -y ffmpeg
-python main.py
+python3 main.py
