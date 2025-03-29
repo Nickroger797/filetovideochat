@@ -1,7 +1,7 @@
 import os
 import subprocess
 import shutil
-from pyrogram import Client
+from pyrogram import Client, filters
 from pyrogram.types import Message
 from file_conversion import convert_file  # Import the function
 from file_conversion import handle_conversion
