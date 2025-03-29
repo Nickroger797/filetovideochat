@@ -3,7 +3,7 @@ from pyrogram import Client
 from motor.motor_asyncio import AsyncIOMotorClient
 from flask import Flask
 import threading
-from commands import *  # Importing all the command functions from commands.py
+from commands import start_command, convert_file_to_media, convert_media_to_file, stats_command
 
 # Logging function (FIX)
 def log(msg):
@@ -36,5 +36,9 @@ def run_flask():
 
 threading.Thread(target=run_flask, daemon=True).start()
 
-log("🚀 Bot is starting...")  # ✅ Ab ye error nahi dega
-bot.run()
+log("🚀 Bot is starting...")
+
+bot.start()  # Bot को manually start करो
+log("✅ Bot started successfully!")
+
+idle()
