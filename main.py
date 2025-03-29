@@ -112,5 +112,20 @@ async def convert_media_to_file(client: Client, message: Message):
     await message.reply("📤 Uploading converted file...")
     await message.reply_document(output_file, caption="Here is your converted file!")
 
+from flask import Flask
+import threading
+
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    flask_app.run(host="0.0.0.0", port=8080)
+
+# Start Flask in a separate thread
+threading.Thread(target=run_flask, daemon=True).start()
+
 log("🚀 Bot is starting...")
 bot.run()
