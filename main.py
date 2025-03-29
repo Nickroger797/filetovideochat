@@ -3,12 +3,7 @@ from pyrogram import Client
 from motor.motor_asyncio import AsyncIOMotorClient
 from flask import Flask
 import threading
-from pyrogram import idle
-from commands import *
-
-# Logging function (FIX)
-def log(msg):
-    print(f"🔹 {msg}")
+import commands
 
 # Pyrogram client setup
 bot = Client(
@@ -22,7 +17,6 @@ bot = Client(
 MONGO_URI = os.getenv("MONGO_URI")
 client = AsyncIOMotorClient(MONGO_URI)
 db = client["file_converter"]
-users_collection = db["users"]
 stats_collection = db["stats"]
 
 # Flask Webserver
@@ -37,9 +31,11 @@ def run_flask():
 
 threading.Thread(target=run_flask, daemon=True).start()
 
-log("🚀 Bot is starting...")
+# 🔹 Commands Register Here
+bot.add_handler(commands.start_command, filters.command("start"))
+bot.add_handler(commands.convert_file_to_media, filters.command("convertfiletomedia"))
+bot.add_handler(commands.convert_media_to_file, filters.command("convertmediatofile"))
+bot.add_handler(commands.stats_command, filters.command("stats"), stats_collection)
 
-bot.start()  # Bot को manually start करो
-log("✅ Bot started successfully!")
-
-idle()
+print("🚀 Bot is starting...")
+bot.run()
