@@ -1,8 +1,9 @@
 import os
 import subprocess
+import shutil
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from pymongo import MongoClient
+from motor.motor_asyncio import AsyncIOMotorClient
 
 # Pyrogram client setup
 bot = Client(
@@ -13,33 +14,28 @@ bot = Client(
 )
 
 # MongoDB setup
-MONGO_URL = os.getenv("MONGO_URL")
-client = MongoClient(MONGO_URL)
-db = client["file_converter_bot"]
+MONGO_URI = os.getenv("MONGO_URI")
+client = AsyncIOMotorClient(MONGO_URI)
+db = client["file_converter"]
 users_collection = db["users"]
-conversions_collection = db["conversions"]
+stats_collection = db["stats"]
 
-DOWNLOAD_PATH = "downloads"
-CONVERTED_PATH = "converted"
+# Directories
+DOWNLOAD_LOCATION = "./DOWNLOADS"
+CONVERTED_PATH = "./CONVERTED"
 
 # Ensure directories exist
-os.makedirs(DOWNLOAD_PATH, exist_ok=True)
+os.makedirs(DOWNLOAD_LOCATION, exist_ok=True)
 os.makedirs(CONVERTED_PATH, exist_ok=True)
 
-# Debug function
+# FFmpeg path check
+FFMPEG_PATH = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
+
 def log(msg):
     print(f"🔹 {msg}")
 
-def update_user_stats(user_id):
-    users_collection.update_one({"user_id": user_id}, {"$setOnInsert": {"quota": 10}}, upsert=True)
-
-def update_conversion_stats(user_id):
-    conversions_collection.insert_one({"user_id": user_id, "timestamp": os.times()})
-
-def get_stats():
-    total_users = users_collection.count_documents({})
-    total_conversions = conversions_collection.count_documents({})
-    return total_users, total_conversions
+async def update_stats():
+    await stats_collection.update_one({"_id": "conversion_stats"}, {"$inc": {"total_conversions": 1}}, upsert=True)
 
 @bot.on_message(filters.command("convertfiletomedia"))
 async def convert_file_to_media(client: Client, message: Message):
@@ -48,7 +44,7 @@ async def convert_file_to_media(client: Client, message: Message):
         return
 
     file = message.reply_to_message.document
-    file_path = os.path.join(DOWNLOAD_PATH, file.file_name)
+    file_path = os.path.join(DOWNLOAD_LOCATION, file.file_name)
 
     log(f"Downloading file: {file.file_name}")
     await message.reply("📥 Downloading file...")
@@ -71,76 +67,27 @@ async def convert_file_to_media(client: Client, message: Message):
     await message.reply("⏳ Converting file to media...")
 
     try:
-        cmd = ["/usr/bin/ffmpeg", "-i", downloaded, "-c:v", "libx264", output_file]
+        cmd = [FFMPEG_PATH, "-i", downloaded, "-c:v", "libx264", output_file]
         subprocess.run(cmd, check=True)
         if not os.path.exists(output_file):
             log("❌ Conversion failed!")
             await message.reply("❌ Conversion failed.")
             return
         log(f"✅ Conversion successful: {output_file}")
+        await update_stats()
     except subprocess.CalledProcessError as e:
         log(f"❌ FFmpeg error: {e}")
         await message.reply("❌ FFmpeg conversion error.")
         return
 
-    update_user_stats(message.from_user.id)
-    update_conversion_stats(message.from_user.id)
-    
     await message.reply("📤 Uploading media...")
     await message.reply_video(output_file, caption="Here is your converted media!")
 
-@bot.on_message(filters.command("convertmediatofile"))
-async def convert_media_to_file(client: Client, message: Message):
-    if not message.reply_to_message or not (message.reply_to_message.video or message.reply_to_message.audio):
-        await message.reply("Please reply to a media file to convert it.")
-        return
-
-    media = message.reply_to_message.video or message.reply_to_message.audio
-    media_path = os.path.join(DOWNLOAD_PATH, media.file_name)
-
-    log(f"Downloading media: {media.file_name}")
-    await message.reply("📥 Downloading media...")
-
-    try:
-        downloaded = await client.download_media(media, media_path)
-        if not os.path.exists(downloaded):
-            log("❌ Media download failed!")
-            await message.reply("❌ Media download failed.")
-            return
-        log(f"✅ Media downloaded: {downloaded}")
-    except Exception as e:
-        log(f"❌ Download error: {e}")
-        await message.reply("❌ Error downloading the media.")
-        return
-
-    output_file = os.path.join(CONVERTED_PATH, os.path.splitext(media.file_name)[0] + ".mkv")
-
-    log(f"🔄 Converting {media.file_name} to MKV...")
-    await message.reply("⏳ Converting media to file...")
-
-    try:
-        cmd = ["ffmpeg", "-i", downloaded, "-c:v", "copy", "-c:a", "copy", output_file]
-        subprocess.run(cmd, check=True)
-        if not os.path.exists(output_file):
-            log("❌ Conversion failed!")
-            await message.reply("❌ Conversion failed.")
-            return
-        log(f"✅ Conversion successful: {output_file}")
-    except subprocess.CalledProcessError as e:
-        log(f"❌ FFmpeg error: {e}")
-        await message.reply("❌ FFmpeg conversion error.")
-        return
-
-    update_user_stats(message.from_user.id)
-    update_conversion_stats(message.from_user.id)
-    
-    await message.reply("📤 Uploading converted file...")
-    await message.reply_document(output_file, caption="Here is your converted file!")
-
 @bot.on_message(filters.command("stats"))
-async def stats_handler(client: Client, message: Message):
-    total_users, total_conversions = get_stats()
-    await message.reply(f"📊 **Bot Stats**:\n👥 Total Users: {total_users}\n🔄 Total Conversions: {total_conversions}")
+async def stats_command(client: Client, message: Message):
+    stats = await stats_collection.find_one({"_id": "conversion_stats"})
+    total_conversions = stats.get("total_conversions", 0) if stats else 0
+    await message.reply(f"📊 Total Conversions: {total_conversions}")
 
 from flask import Flask
 import threading
