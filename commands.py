@@ -21,7 +21,9 @@ async def convert_file_to_media(client, message: Message):
         return
 
     file = message.reply_to_message.document
-    file_path = os.path.join(DOWNLOAD_LOCATION, file.file_name)
+    safe_filename = "".join(c for c in file.file_name if c.isalnum() or c in ('.', '_', '-'))
+    
+    file_path = os.path.join(DOWNLOAD_LOCATION, safe_filename)
 
     log(f"Downloading file: {file.file_name}")
     await message.reply("📥 Downloading file...")
@@ -32,7 +34,9 @@ async def convert_file_to_media(client, message: Message):
         return
     log(f"✅ File downloaded: {downloaded}")
 
-    output_file = os.path.join(CONVERTED_PATH, os.path.splitext(file.file_name)[0] + ".mp4")
+    os.makedirs(CONVERTED_PATH, exist_ok=True)  # Ensure output directory exists
+    output_file = os.path.join(CONVERTED_PATH, os.path.splitext(safe_filename)[0] + ".mp4")
+
     log(f"🔄 Converting {file.file_name} to MP4...")
     await message.reply("⏳ Converting file to media...")
 
