@@ -6,10 +6,11 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 
 # Bot credentials
-API_ID = "your_api_id"
-API_HASH = "your_api_hash"
-BOT_TOKEN = "your_bot_token"
-MONGO_URI = "your_mongodb_uri"
+API_ID = int(os.getenv("API_ID"))  # API_ID ko integer me convert kar rahe hain
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+MONGO_URI = os.getenv("MONGO_URI")
+
 
 # MongoDB setup
 client_db = pymongo.MongoClient(MONGO_URI)
