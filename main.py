@@ -71,7 +71,7 @@ async def convert_file_to_media(client: Client, message: Message):
     await message.reply("⏳ Converting file to media...")
 
     try:
-        cmd = ["ffmpeg", "-i", downloaded, "-c:v", "libx264", output_file]
+        cmd = ["/usr/bin/ffmpeg", "-i", downloaded, "-c:v", "libx264", output_file]
         subprocess.run(cmd, check=True)
         if not os.path.exists(output_file):
             log("❌ Conversion failed!")
