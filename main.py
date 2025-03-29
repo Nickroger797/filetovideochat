@@ -78,4 +78,19 @@ async def convert_media_to_file(client: Client, message: Message):
     except Exception as e:
         await message.reply_text(f"Conversion failed: {str(e)}")
 
+from flask import Flask  
+import threading  
+
+flask_app = Flask(__name__)  
+
+@flask_app.route('/')  
+def home():  
+    return "Bot is running!"  
+
+def run_flask():  
+    flask_app.run(host="0.0.0.0", port=8080)  
+
+# Flask ko ek alag thread pe run karna  
+threading.Thread(target=run_flask, daemon=True).start()  
+
 app.run()
