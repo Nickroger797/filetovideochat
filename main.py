@@ -2,6 +2,7 @@ import os
 import subprocess
 from pyrogram import Client, filters
 from pyrogram.types import Message
+from pymongo import MongoClient
 
 # Pyrogram client setup
 bot = Client(
@@ -10,6 +11,13 @@ bot = Client(
     api_hash=os.getenv("API_HASH"),
     bot_token=os.getenv("BOT_TOKEN")
 )
+
+# MongoDB setup
+MONGO_URL = os.getenv("MONGO_URL")
+client = MongoClient(MONGO_URL)
+db = client["file_converter_bot"]
+users_collection = db["users"]
+conversions_collection = db["conversions"]
 
 DOWNLOAD_PATH = "downloads"
 CONVERTED_PATH = "converted"
@@ -21,6 +29,17 @@ os.makedirs(CONVERTED_PATH, exist_ok=True)
 # Debug function
 def log(msg):
     print(f"🔹 {msg}")
+
+def update_user_stats(user_id):
+    users_collection.update_one({"user_id": user_id}, {"$setOnInsert": {"quota": 10}}, upsert=True)
+
+def update_conversion_stats(user_id):
+    conversions_collection.insert_one({"user_id": user_id, "timestamp": os.times()})
+
+def get_stats():
+    total_users = users_collection.count_documents({})
+    total_conversions = conversions_collection.count_documents({})
+    return total_users, total_conversions
 
 @bot.on_message(filters.command("convertfiletomedia"))
 async def convert_file_to_media(client: Client, message: Message):
@@ -64,6 +83,9 @@ async def convert_file_to_media(client: Client, message: Message):
         await message.reply("❌ FFmpeg conversion error.")
         return
 
+    update_user_stats(message.from_user.id)
+    update_conversion_stats(message.from_user.id)
+    
     await message.reply("📤 Uploading media...")
     await message.reply_video(output_file, caption="Here is your converted media!")
 
@@ -109,8 +131,16 @@ async def convert_media_to_file(client: Client, message: Message):
         await message.reply("❌ FFmpeg conversion error.")
         return
 
+    update_user_stats(message.from_user.id)
+    update_conversion_stats(message.from_user.id)
+    
     await message.reply("📤 Uploading converted file...")
     await message.reply_document(output_file, caption="Here is your converted file!")
+
+@bot.on_message(filters.command("stats"))
+async def stats_handler(client: Client, message: Message):
+    total_users, total_conversions = get_stats()
+    await message.reply(f"📊 **Bot Stats**:\n👥 Total Users: {total_users}\n🔄 Total Conversions: {total_conversions}")
 
 from flask import Flask
 import threading
