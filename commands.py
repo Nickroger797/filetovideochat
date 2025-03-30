@@ -24,6 +24,8 @@ async def convert_file_to_media(client, message: Message):
     safe_filename = "".join(c for c in file.file_name if c.isalnum() or c in ('.', '_', '-'))
     
     file_path = os.path.join(DOWNLOAD_LOCATION, safe_filename)
+    os.makedirs(DOWNLOAD_LOCATION, exist_ok=True)
+    os.makedirs(CONVERTED_PATH, exist_ok=True)  # Ensure output directory exists
 
     log(f"Downloading file: {file.file_name}")
     await message.reply("📥 Downloading file...")
@@ -33,21 +35,28 @@ async def convert_file_to_media(client, message: Message):
         await message.reply("❌ File download failed.")
         return
     log(f"✅ File downloaded: {downloaded}")
-
-    os.makedirs(CONVERTED_PATH, exist_ok=True)  # Ensure output directory exists
     
     # MP4 Output File
     mp4_output = os.path.join(CONVERTED_PATH, os.path.splitext(safe_filename)[0] + ".mp4")
 
-    # Convert to MP4
     log(f"🔄 Converting {file.file_name} to MP4...")
     await message.reply("⏳ Converting file to MP4...")
-    cmd_mp4 = [FFMPEG_PATH, "-i", downloaded, "-c:v", "libx264", "-preset", "fast", mp4_output]
-    subprocess.run(cmd_mp4, check=True)
 
+    # FFmpeg command with lower CPU usage and log capture
+    cmd_mp4 = [
+        FFMPEG_PATH, "-i", downloaded,
+        "-vf", "scale=1280:-1",  # Reduce video size if needed
+        "-c:v", "libx264", "-preset", "slow", "-crf", "28",
+        mp4_output
+    ]
+    with open("ffmpeg_log.txt", "w") as log_file:
+        process = subprocess.run(cmd_mp4, stderr=log_file)
+    
     if os.path.exists(mp4_output):
         log(f"✅ MP4 Conversion successful: {mp4_output}")
         await message.reply_video(mp4_output, caption="Here is your converted MP4 media!")
+    else:
+        await message.reply("❌ Conversion failed. Check log for details.")
         
 async def convert_media_to_file(client, message: Message):
     if not message.reply_to_message or not message.reply_to_message.video:
