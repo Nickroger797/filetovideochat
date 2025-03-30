@@ -1,52 +1,62 @@
+import logging
 import os
 from pyrogram import Client, filters
-from motor.motor_asyncio import AsyncIOMotorClient
-from flask import Flask
-import threading
-import commands
+from pyrogram.types import Message
+from config import API_ID, API_HASH, BOT_TOKEN
+from utils.ffmpeg_util import convert_video
+from database import users_col, logs_col
 
-# Pyrogram client setup
+# ✅ Debugging Mode Enable (Logs देखने के लिए)
+logging.basicConfig(level=logging.DEBUG)
+
+# ✅ Initialize Bot
 bot = Client(
-    "FileConverterBot",
-    api_id=int(os.getenv("API_ID")),
-    api_hash=os.getenv("API_HASH"),
-    bot_token=os.getenv("BOT_TOKEN")
+    "video_converter_bot",
+    api_id=API_ID,
+    api_hash=API_HASH,
+    bot_token=BOT_TOKEN
 )
 
-# MongoDB setup
-MONGO_URI = os.getenv("MONGO_URI")
-client = AsyncIOMotorClient(MONGO_URI)
-db = client["file_converter"]
-stats_collection = db["stats"]
+# ✅ Check MongoDB Connection
+try:
+    from database import client  # MongoDB Client
+    client.server_info()  # Check if MongoDB is connected
+    print("✅ MongoDB Connected Successfully!")
+except Exception as e:
+    print("❌ MongoDB Connection Error:", e)
+    exit(1)  # Bot बंद कर दो अगर database connect नहीं हुआ
 
-# Flask Webserver
-flask_app = Flask(__name__)
-
-@flask_app.route('/')
-def home():
-    return "Bot is running!"
-
-def run_flask():
-    flask_app.run(host="0.0.0.0", port=8080)
-
-threading.Thread(target=run_flask, daemon=True).start()
-
-# Register Handlers
+# ✅ /start Command
 @bot.on_message(filters.command("start"))
-async def start(client, message):
-    await commands.start_command(client, message)
+async def start_handler(client: Client, message: Message):
+    user_id = message.from_user.id
+    users_col.update_one({"user_id": user_id}, {"$set": {"user_id": user_id}}, upsert=True)
+    await message.reply_text("👋 Welcome! Send me a video file, and I'll convert it to Telegram's gallery mode.")
 
-@bot.on_message(filters.command("convertfiletomedia"))
-async def convert_file(client, message):
-    await commands.convert_file_to_media(client, message)
-
-@bot.on_message(filters.command("convertmediatofile"))
-async def convert_media(client, message):
-    await commands.convert_media_to_file(client, message)
-
+# ✅ /stats Command
 @bot.on_message(filters.command("stats"))
-async def stats_command(client, message):
-    await commands.stats_command(client, message, stats_collection)  # ✅ Fix applied
+async def stats_handler(client: Client, message: Message):
+    total_users = users_col.count_documents({})
+    total_conversions = logs_col.count_documents({})
+    await message.reply_text(f"📊 **Bot Stats**:\n👥 Total Users: {total_users}\n🎥 Total Conversions: {total_conversions}")
 
-print("🚀 Bot is starting...")
-bot.run()
+# ✅ Video Conversion Handler
+@bot.on_message(filters.video | filters.document)
+async def convert_handler(client: Client, message: Message):
+    user_id = message.from_user.id
+    if not message.video and not message.document:
+        await message.reply_text("⚠️ Please send a video file.")
+        return
+
+    file_path = await message.download()
+    output_path = convert_video(file_path)
+
+    await message.reply_video(video=output_path, caption="✅ Here is your converted video!", supports_streaming=True)
+    os.remove(file_path)
+    os.remove(output_path)
+
+    logs_col.insert_one({"user_id": user_id, "file": message.document.file_name if message.document else "video", "status": "converted"})
+
+# ✅ Run Bot
+if __name__ == "__main__":
+    bot.run()
