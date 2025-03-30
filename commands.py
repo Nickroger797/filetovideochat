@@ -16,7 +16,7 @@ def log(msg):
 async def send_logs_to_telegram(client, chat_id, log_file):
     with open(log_file, "r") as file:
         log_text = file.read()[-4000:]  # सिर्फ़ आख़िरी 4000 characters भेजेंगे ताकि message limit exceed न हो
-    await client.send_message(chat_id, f"🔹 **FFmpeg Logs:**\n\n<pre>{log_text}</pre>", parse_mode="HTML")
+    await client.send_message(chat_id, f"🔹 **FFmpeg Logs:**\n\n<pre>{log_text}</pre>", parse_mode="html")
 
 async def start_command(client, message: Message):
     await message.reply("Hello! I am your File Converter Bot. Send me a file to convert.")
