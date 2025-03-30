@@ -12,6 +12,12 @@ FFMPEG_PATH = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
 def log(msg):
     print(f"🔹 {msg}")
 
+# Function to send logs to Telegram
+async def send_logs_to_telegram(client, chat_id, log_file):
+    with open(log_file, "r") as file:
+        log_text = file.read()[-4000:]  # सिर्फ़ आख़िरी 4000 characters भेजेंगे ताकि message limit exceed न हो
+    await client.send_message(chat_id, f"🔹 **FFmpeg Logs:**\n\n```{log_text}```", parse_mode="markdown")
+
 async def start_command(client, message: Message):
     await message.reply("Hello! I am your File Converter Bot. Send me a file to convert.")
 
@@ -42,6 +48,8 @@ async def convert_file_to_media(client, message: Message):
     log(f"🔄 Converting {file.file_name} to MP4...")
     await message.reply("⏳ Converting file to MP4...")
 
+    log_file = "ffmpeg_log.txt"  # Log file path
+
     # FFmpeg command with lower CPU usage and log capture
     cmd_mp4 = [
         FFMPEG_PATH, "-i", downloaded,
@@ -49,14 +57,17 @@ async def convert_file_to_media(client, message: Message):
         "-c:v", "libx264", "-preset", "slow", "-crf", "28",
         mp4_output
     ]
-    with open("ffmpeg_log.txt", "w") as log_file:
-        process = subprocess.run(cmd_mp4, stderr=log_file)
-    
-    if os.path.exists(mp4_output):
-        log(f"✅ MP4 Conversion successful: {mp4_output}")
-        await message.reply_video(mp4_output, caption="Here is your converted MP4 media!")
-    else:
-        await message.reply("❌ Conversion failed. Check log for details.")
+
+    with open(log_file, "w") as log_file_obj:
+        process = subprocess.run(cmd_mp4, stderr=log_file_obj)
+
+    if process.returncode != 0 or not os.path.exists(mp4_output) or os.path.getsize(mp4_output) == 0:
+        await message.reply("❌ FFmpeg conversion failed. Sending logs...")
+        await send_logs_to_telegram(client, message.chat.id, log_file)
+        return
+
+    log(f"✅ MP4 Conversion successful: {mp4_output}")
+    await message.reply_video(mp4_output, caption="Here is your converted MP4 media!")
         
 async def convert_media_to_file(client, message: Message):
     if not message.reply_to_message or not message.reply_to_message.video:
